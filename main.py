@@ -1,51 +1,46 @@
 import os
-from flask import Flask, request, jsonify
 import google.generativeai as genai
+from flask import Flask, request, jsonify
 
-# 1. Configuración de la IA
-# Usamos os.environ para leer la clave de forma segura desde las variables de entorno de Render
+# 1. Configuración de la API Key (se lee desde las variables de entorno de Render)
 api_key = os.environ.get('GEMINI_API_KEY')
 genai.configure(api_key=api_key)
 
-# Seleccionamos el modelo más eficiente para chat
-model = genai.GenerativeModel(model_name="models/gemini-3-flash-preview")
+# 2. Definición del modelo (usamos la versión preview que aparece en tu consola)
+model = genai.GenerativeModel('gemini-3-flash-preview')
 
 app = Flask(__name__)
 
 @app.route('/')
 def index():
-    return "El servidor del bot está activo."
+    return "Servidor del Bot Activo y Conectado"
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    # 2. Recibir la petición de Dialogflow
+    # Recibir la petición de Dialogflow
     req = request.get_json(silent=True, force=True)
     
     try:
-        # Extraer el texto que el usuario envió desde Telegram
+        # Extraer el texto del usuario
         user_query = req.get('queryResult').get('queryText')
         
-        # 3. Enviar el texto a Gemini
-        # Aquí puedes añadir un "System Instruction" si quieres que sea un experto contable
+        # Generar la respuesta con la IA
+        # Añadimos un pequeño manejo de historial vacío para estabilidad
         chat = model.start_chat(history=[])
         response = chat.send_message(user_query)
         
-        # 4. Formatear la respuesta para Dialogflow ES
-        # El campo 'fulfillmentText' es el que Dialogflow envía de vuelta a Telegram
+        # Enviar de vuelta a Dialogflow/Telegram
         return jsonify({
             "fulfillmentText": response.text
         })
         
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error detectado: {str(e)}")
         return jsonify({
-            "fulfillmentText": "Lo siento, tuve un problema al procesar tu consulta con la IA."
+            "fulfillmentText": "Lo siento, hubo un error interno en la conexión con la IA."
         })
 
 if __name__ == '__main__':
-    # Render asigna un puerto automáticamente a través de la variable de entorno PORT
+    # Render asigna el puerto automáticamente
     port = int(os.environ.get('PORT', 5000))
-
     app.run(host='0.0.0.0', port=port)
-
-
