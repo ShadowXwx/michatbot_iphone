@@ -8,7 +8,7 @@ api_key = os.environ.get('GEMINI_API_KEY')
 genai.configure(api_key=api_key)
 
 # Seleccionamos el modelo más eficiente para chat
-model = genai.GenerativeModel(model_name="models/gemini-3-flash")
+model = genai.GenerativeModel(model_name="models/gemini-3-flash-preview")
 
 app = Flask(__name__)
 
@@ -47,4 +47,5 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
 
     app.run(host='0.0.0.0', port=port)
+
 
