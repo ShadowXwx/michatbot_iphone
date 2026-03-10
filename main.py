@@ -19,43 +19,34 @@ def webhook():
     user_query = req.get('queryResult').get('queryText').lower()
     
     try:
-        # LÓGICA 1: GUARDAR PRECIO Y COLOR (Ej: "Guardar iPhone 15, 20000, Azul")
-        if "guardar" in user_query and "," in user_query:
-            partes = [p.strip() for p in user_query.replace("guardar", "").split(",")]
-            if len(partes) >= 3:
-                data = {"data": [{"Modelo": partes[0], "Precio": partes[1], "Color": partes[2]}]}
-                requests.post(f"{SHEETDB_URL}?sheet=Inventario", json=data)
-                return jsonify({"fulfillmentText": f"✅ Registrado: {partes[0]} {partes[2]} a ${partes[1]}."})
+        # 1. Obtener todo el inventario de SheetDB
+        # Es importante que en tu Excel las columnas sean: Modelo, Precio, Color
+        res = requests.get(f"{SHEETDB_URL}?sheet=Inventario")
+        inventario = res.json()
 
-        # LÓGICA 2: REGISTRAR VENTA (Ej: "Venta a Vicente de 2 iPhone 15")
-        if "venta" in user_query:
-            # Usamos a Gemini para extraer los datos de la frase de venta de forma inteligente
-            prompt_venta = f"Extrae Cliente, Modelo y Cantidad de esta frase: '{user_query}'. Responde solo en formato CSV: cliente,modelo,cantidad"
-            res_ia = model.generate_content(prompt_venta).text.strip().split(",")
-            
-            data_venta = {"data": [{
-                "Cliente": res_ia[0], 
-                "Modelo": res_ia[1], 
-                "Cantidad": res_ia[2], 
-                "Fecha": datetime.now().strftime("%d/%m/%Y")
-            }]}
-            requests.post(f"{SHEETDB_URL}?sheet=Ventas", json=data_venta)
-            return jsonify({"fulfillmentText": f"💰 Venta anotada: {res_ia[2]} unidad(es) de {res_ia[1]} para {res_ia[0]}."})
+        # 2. ORDENAR MODELOS POR LONGITUD (Truco para modelos Pro, Air, e)
+        # Esto hace que busque "iPhone 17 Pro" antes que "iPhone 17"
+        inventario_ordenado = sorted(inventario, key=lambda x: len(x['Modelo']), reverse=True)
 
-        # LÓGICA 3: CONSULTAR PRECIO (Cualquier otra pregunta va a Gemini)
-        # Primero buscamos en el Excel si existe el modelo
-        inventario = requests.get(f"{SHEETDB_URL}?sheet=Inventario").json()
-        for item in inventario:
+        # 3. BUSCAR COINCIDENCIA EN LA PREGUNTA
+        encontrado = None
+        for item in inventario_ordenado:
             if item['Modelo'].lower() in user_query:
-                return jsonify({"fulfillmentText": f"📱 El {item['Modelo']} ({item['Color']}) cuesta ${item['Precio']}."})
+                encontrado = item
+                break # Detenerse en la coincidencia más específica
 
-        # Si no está en el Excel, responde Gemini normal
+        if encontrado:
+            respuesta = (f"📱 El {encontrado['Modelo']} cuesta {encontrado['Precio']}. "
+                         f"Está disponible en: {encontrado['Color']}.")
+            return jsonify({"fulfillmentText": respuesta})
+
+        # 4. SI NO ESTÁ EN EL EXCEL, RESPONDER CON GEMINI
         response = model.generate_content(user_query)
         return jsonify({"fulfillmentText": response.text})
 
     except Exception as e:
         print(f"Error: {e}")
-        return jsonify({"fulfillmentText": "Hubo un error al procesar la solicitud."})
+        return jsonify({"fulfillmentText": "Hubo un problema al consultar el catálogo."})
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
