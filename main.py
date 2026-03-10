@@ -1,46 +1,49 @@
 import os
+import requests
+from datetime import datetime
 import google.generativeai as genai
 from flask import Flask, request, jsonify
 
-# 1. Configuración de la API Key (se lee desde las variables de entorno de Render)
+# Configuración de APIs
 api_key = os.environ.get('GEMINI_API_KEY')
-genai.configure(api_key=api_key)
+SHEETDB_URL = "TU_URL_DE_SHEETDB_AQUI" # Reemplaza con tu URL de SheetDB
 
-# 2. Definición del modelo (usamos la versión preview que aparece en tu consola)
+genai.configure(api_key=api_key)
 model = genai.GenerativeModel('gemini-3-flash-preview')
 
 app = Flask(__name__)
 
-@app.route('/')
-def index():
-    return "Servidor del Bot Activo y Conectado"
-
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    # Recibir la petición de Dialogflow
     req = request.get_json(silent=True, force=True)
     
     try:
-        # Extraer el texto del usuario
         user_query = req.get('queryResult').get('queryText')
         
-        # Generar la respuesta con la IA
-        # Añadimos un pequeño manejo de historial vacío para estabilidad
-        chat = model.start_chat(history=[])
-        response = chat.send_message(user_query)
+        # --- Lógica de SheetDB: Guardar consulta ---
+        data_to_sheet = {
+            "data": [
+                {
+                    "Nombre": "Usuario_Telegram",
+                    "Consulta": user_query,
+                    "Fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+            ]
+        }
+        requests.post(SHEETDB_URL, json=data_to_sheet)
+        # ------------------------------------------
+
+        # Respuesta de Gemini
+        response = model.generate_content(user_query)
         
-        # Enviar de vuelta a Dialogflow/Telegram
         return jsonify({
             "fulfillmentText": response.text
         })
         
     except Exception as e:
-        print(f"Error detectado: {str(e)}")
-        return jsonify({
-            "fulfillmentText": "Lo siento, hubo un error interno en la conexión con la IA."
-        })
+        print(f"Error: {str(e)}")
+        return jsonify({"fulfillmentText": "Error al conectar con la base de datos o la IA."})
 
 if __name__ == '__main__':
-    # Render asigna el puerto automáticamente
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
