@@ -20,12 +20,10 @@ def webhook():
     
     try:
         # 1. Obtener todo el inventario de SheetDB
-        # Es importante que en tu Excel las columnas sean: Modelo, Precio, Color
         res = requests.get(f"{SHEETDB_URL}?sheet=Inventario")
         inventario = res.json()
 
         # 2. ORDENAR MODELOS POR LONGITUD (Truco para modelos Pro, Air, e)
-        # Esto hace que busque "iPhone 17 Pro" antes que "iPhone 17"
         inventario_ordenado = sorted(inventario, key=lambda x: len(x['Modelo']), reverse=True)
 
         # 3. BUSCAR COINCIDENCIA EN LA PREGUNTA
