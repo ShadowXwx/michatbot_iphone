@@ -31,7 +31,7 @@ def webhook():
         for item in inventario_ordenado:
             if item['Modelo'].lower() in user_query:
                 encontrado = item
-                break # Detenerse en la coincidencia más específica
+                break 
 
         if encontrado:
             respuesta = (f"📱 El {encontrado['Modelo']} cuesta {encontrado['Precio']}. "
